@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required) - The user's unique ID
+    //   - email: string (required) - The user's email address
+    //   - displayName: string - The user's display name
+    //   - photoURL: string - URL to the user's profile photo
+    //   - isPremium: boolean - Whether the user has a premium subscription
+    //   - resumeCount: number - Number of resumes created
+    //   - createdAt: timestamp - When the profile was created
+    //   - role: string - User role (admin, user)
+    //   - lastResumeData: map - Latest resume data for pre-filling
+    //
+    // Collection: resumes
+    // Document ID: {resumeId}
+    // Fields:
+    //   - userId: string (required) - ID of the owner
+    //   - title: string (required) - Resume title
+    //   - templateId: string - ID of the template used
+    //   - personalInfo: map - Personal details
+    //   - summary: string - Professional summary
+    //   - experience: list - Work history
+    //   - education: list - Educational history
+    //   - skills: list - List of skills
+    //   - score: number - AI-generated score
+    //   - analysis: map - AI analysis results
+    //   - updatedAt: timestamp - Last update time
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((request.auth.token.email == "vermaaniket577@gmail.com" && request.auth.token.email_verified == true) ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('isPremium' in data) || data.isPremium is bool) &&
+             (!('resumeCount' in data) || data.resumeCount is number) &&
+             (!('role' in data) || data.role in ['admin', 'user']) &&
+             (!('lastResumeData' in data) || data.lastResumeData is map);
+    }
+
+    function isValidResume(data) {
+      return data.keys().hasAll(['userId', 'title']) &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
+             (!('summary' in data) || (data.summary is string && data.summary.size() < 5000)) &&
+             (!('score' in data) || (data.score is number && data.score >= 0 && data.score <= 100));
+    }
+
+    function isValidJob(data) {
+      return data.keys().hasAll(['title', 'company', 'location', 'salary', 'type']) &&
+             data.title is string && data.title.size() > 0 &&
+             data.company is string && data.company.size() > 0 &&
+             data.location is string && data.location.size() > 0 &&
+             data.salary is string && data.salary.size() > 0 &&
+             data.type is string && data.type.size() > 0 &&
+             (!('tags' in data) || data.tags is list);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      
+      // Users can create their own profile with 'user' role by default
+      allow create: if isOwner(uid) && isValidUser(request.resource.data) && 
+                    (!('role' in request.resource.data) || request.resource.data.role == 'user' || isAdmin());
+      
+      // Users can update their own profile but cannot change their role unless they are admin
+      allow update: if (isOwner(uid) || isAdmin()) && isValidUser(request.resource.data) &&
+                    (!('role' in resource.data) || request.resource.data.role == resource.data.role || isAdmin()) &&
+                    request.resource.data.uid == resource.data.uid;
+    }
+
+    match /resumes/{resumeId} {
+      // Allow read (get and list) if owner or admin
+      allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.userId == request.auth.uid));
+      
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidResume(request.resource.data);
+      
+      allow update: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid) && 
+                    request.resource.data.userId == resource.data.userId && isValidResume(request.resource.data);
+      
+      allow delete: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+    }
+
+    match /jobs/{jobId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidJob(request.resource.data);
+      allow update: if isAdmin() && isValidJob(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}

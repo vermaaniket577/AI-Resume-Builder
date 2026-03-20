@@ -1,0 +1,106 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user account information and subscription status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "isPremium": { "type": "boolean" },
+        "resumeCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastResumeData": { "$ref": "Resume", "description": "Latest resume data for pre-filling" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Resume": {
+      "title": "Resume",
+      "description": "Stores all data for a single resume",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string", "description": "Resume title (e.g., Product Designer 2024)" },
+        "templateId": { "type": "string" },
+        "personalInfo": {
+          "type": "object",
+          "properties": {
+            "fullName": { "type": "string" },
+            "email": { "type": "string" },
+            "phone": { "type": "string" },
+            "location": { "type": "string" },
+            "linkedin": { "type": "string" },
+            "portfolio": { "type": "string" }
+          }
+        },
+        "summary": { "type": "string" },
+        "experience": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "company": { "type": "string" },
+              "role": { "type": "string" },
+              "startDate": { "type": "string" },
+              "endDate": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "education": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "school": { "type": "string" },
+              "degree": { "type": "string" },
+              "gradDate": { "type": "string" }
+            }
+          }
+        },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "certifications": { "type": "array", "items": { "type": "string" } },
+        "projects": { "type": "array", "items": { "type": "string" } },
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "score": { "type": "number" },
+        "analysis": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title"]
+    },
+    "Job": {
+      "title": "Job Posting",
+      "description": "Stores job postings created by admins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "company": { "type": "string" },
+        "location": { "type": "string" },
+        "salary": { "type": "string" },
+        "type": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "company", "location", "salary", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profile documents"
+    },
+    "/resumes/{resumeId}": {
+      "schema": "Resume",
+      "description": "User resumes"
+    },
+    "/jobs/{jobId}": {
+      "schema": "Job",
+      "description": "Job postings"
+    }
+  }
+}
