@@ -16,7 +16,7 @@ import { AIAssistedTextarea } from '../components/AIAssistedTextarea';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 const Wizard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -216,9 +216,19 @@ const Wizard: React.FC = () => {
           const content = await file.text();
           resumeData = JSON.parse(content);
         } else if (fileName.endsWith('.pdf')) {
+          if (!profile?.isPremium) {
+            setToast({ message: "PDF import is a premium feature. Please upgrade.", type: 'error' });
+            setLoading(false);
+            return;
+          }
           const text = await extractTextFromPDF(file);
           resumeData = await aiService.parseResumeFromText(text);
         } else if (fileName.endsWith('.docx')) {
+          if (!profile?.isPremium) {
+            setToast({ message: "DOCX import is a premium feature. Please upgrade.", type: 'error' });
+            setLoading(false);
+            return;
+          }
           const text = await extractTextFromDOCX(file);
           resumeData = await aiService.parseResumeFromText(text);
         } else {
@@ -252,6 +262,10 @@ const Wizard: React.FC = () => {
   };
 
   const handleAISummary = async () => {
+    if (!profile?.isPremium) {
+      setToast({ message: "AI Summary is a premium feature. Please upgrade.", type: 'error' });
+      return;
+    }
     if (!personalInfo.fullName || experience.length === 0) {
       setToast({ message: "Please fill in your name and at least one experience first.", type: 'error' });
       return;
@@ -324,14 +338,20 @@ const Wizard: React.FC = () => {
       }
 
       // Initial analysis - this is the "AI generation" part for scoring
-      console.log("Analyzing resume with AI...");
-      const { updatedAt, ...resumeDataForAI } = resumeData;
-      if (resumeDataForAI.personalInfo?.photoUrl) {
-        resumeDataForAI.personalInfo = { ...resumeDataForAI.personalInfo, photoUrl: undefined };
+      if (profile?.isPremium) {
+        console.log("Analyzing resume with AI...");
+        const { updatedAt, ...resumeDataForAI } = resumeData;
+        if (resumeDataForAI.personalInfo?.photoUrl) {
+          resumeDataForAI.personalInfo = { ...resumeDataForAI.personalInfo, photoUrl: undefined };
+        }
+        const analysis = await aiService.analyzeResume(resumeDataForAI);
+        resumeData.score = analysis.score;
+        resumeData.analysis = analysis;
+      } else {
+        console.log("Skipping AI analysis for free user.");
+        resumeData.score = 0;
+        resumeData.analysis = undefined;
       }
-      const analysis = await aiService.analyzeResume(resumeDataForAI);
-      resumeData.score = analysis.score;
-      resumeData.analysis = analysis;
 
       if (id) {
         console.log("Updating resume in Firestore...");

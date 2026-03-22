@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, Crown } from 'lucide-react';
 import { aiService } from '../services/aiService';
+import { useAuth } from '../App';
 
 interface AIAssistedTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   value: string;
@@ -15,9 +16,14 @@ export const AIAssistedTextarea: React.FC<AIAssistedTextareaProps> = ({
   className = "",
   ...props 
 }) => {
+  const { profile } = useAuth();
   const [isImproving, setIsImproving] = useState(false);
 
   const handleImprove = async () => {
+    if (!profile?.isPremium) {
+      alert("This is a premium feature. Please upgrade to use AI assistance.");
+      return;
+    }
     if (!value.trim()) return;
     setIsImproving(true);
     try {
@@ -44,15 +50,15 @@ export const AIAssistedTextarea: React.FC<AIAssistedTextareaProps> = ({
           type="button"
           onClick={handleImprove}
           disabled={isImproving || !value.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-full transition-colors shadow-sm backdrop-blur-sm"
-          title="Suggest to improve score"
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold ${profile?.isPremium ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'} disabled:opacity-50 disabled:cursor-not-allowed rounded-full transition-colors shadow-sm backdrop-blur-sm`}
+          title={profile?.isPremium ? "Suggest to improve score" : "Pro Feature"}
         >
           {isImproving ? (
             <Loader2 size={14} className="animate-spin" />
           ) : (
-            <Sparkles size={14} />
+            profile?.isPremium ? <Sparkles size={14} /> : <Crown size={14} />
           )}
-          <span>{isImproving ? "Improving..." : "Improve Score"}</span>
+          <span>{isImproving ? "Improving..." : profile?.isPremium ? "Improve Score" : "Pro Improve"}</span>
         </button>
       </div>
     </div>

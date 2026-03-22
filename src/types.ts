@@ -80,3 +80,10 @@ export interface Job {
   createdAt?: any;
   updatedAt?: any;
 }
+
+export interface PlanConfig {
+  price: number;
+  currency: string;
+  billingCycle: string;
+  features: string[];
+}

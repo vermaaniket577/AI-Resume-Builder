@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, orderBy, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../App';
-import { Resume } from '../types';
-import { PlusCircle, FileText, Star, Lightbulb, BarChart, ChevronRight, Sparkles, Trash2, X, AlertTriangle, FileUp, Wand2, Send, Loader2, Check } from 'lucide-react';
+import { Resume, PlanConfig } from '../types';
+import { PlusCircle, FileText, Star, Lightbulb, BarChart, ChevronRight, Sparkles, Trash2, X, AlertTriangle, FileUp, Wand2, Send, Loader2, Check, Shield } from 'lucide-react';
 import { aiService } from '../services/aiService';
 import { motion, AnimatePresence } from 'motion/react';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -21,6 +21,22 @@ const Dashboard: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [planConfig, setPlanConfig] = useState<PlanConfig | null>(null);
+
+  useEffect(() => {
+    const fetchPlanConfig = async () => {
+      try {
+        const planDoc = await getDoc(doc(db, 'config', 'plan'));
+        if (planDoc.exists()) {
+          setPlanConfig(planDoc.data() as PlanConfig);
+        }
+      } catch (error) {
+        console.error("Error fetching plan config:", error);
+      }
+    };
+    fetchPlanConfig();
+  }, []);
+
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -176,12 +192,51 @@ const Dashboard: React.FC = () => {
     if (!user) return;
     setIsUpgrading(true);
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        isPremium: true
+      // 1. Create Order on Backend
+      const response = await fetch('/api/razorpay/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: 499, currency: 'INR' }) // Example price
       });
-      setToast({ message: "Congratulations! You are now a Premium member.", type: 'success' });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+
+      if (!response.ok) throw new Error('Failed to create order');
+      const order = await response.json();
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: (process.env as any).RAZORPAY_KEY_ID || '',
+        amount: order.amount,
+        currency: order.currency,
+        name: 'AI Resume Builder',
+        description: 'Pro Subscription',
+        order_id: order.id,
+        handler: async (response: any) => {
+          // Payment success!
+          // The webhook will handle the backend update, but we can also update UI here
+          setToast({ message: "Payment successful! Your account is being upgraded.", type: 'success' });
+          setShowSubscriptionModal(false);
+        },
+        prefill: {
+          name: user.displayName || '',
+          email: user.email || '',
+        },
+        notes: {
+          userId: user.uid
+        },
+        theme: {
+          color: '#4f46e5'
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', (response: any) => {
+        setToast({ message: "Payment failed: " + response.error.description, type: 'error' });
+      });
+      rzp.open();
+
+    } catch (error: any) {
+      console.error("Upgrade Error:", error);
+      setToast({ message: "Failed to initiate upgrade: " + error.message, type: 'error' });
     } finally {
       setIsUpgrading(false);
     }
@@ -269,13 +324,19 @@ const Dashboard: React.FC = () => {
         <motion.div 
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="relative"
+          className="relative group cursor-pointer"
+          onClick={() => navigate('/settings')}
         >
           {user?.photoURL ? (
             <img src={user.photoURL} alt="Profile" className="size-10 rounded-full ring-2 ring-primary/20" />
           ) : (
             <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
               <span className="text-xs font-bold">{user?.displayName?.[0] || 'U'}</span>
+            </div>
+          )}
+          {user?.email === 'vermaaniket577@gmail.com' && (
+            <div className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-0.5 border-2 border-white dark:border-slate-950 shadow-sm">
+              <Shield size={10} fill="currentColor" />
             </div>
           )}
         </motion.div>
@@ -287,11 +348,20 @@ const Dashboard: React.FC = () => {
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => setIsAiModalOpen(true)}
+            onClick={() => {
+              if (profile?.isPremium) {
+                setIsAiModalOpen(true);
+              } else {
+                setShowSubscriptionModal(true);
+              }
+            }}
             className="relative overflow-hidden group flex flex-col items-start justify-between p-6 rounded-3xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 h-48 sm:h-auto sm:min-h-[12rem] shadow-2xl shadow-slate-900/20 dark:shadow-white/5"
           >
-            <div className="size-12 rounded-2xl bg-white/10 dark:bg-slate-900/10 flex items-center justify-center mb-4">
-              <Wand2 size={24} className="text-white dark:text-slate-900" />
+            <div className="flex justify-between items-start w-full">
+              <div className="size-12 rounded-2xl bg-white/10 dark:bg-slate-900/10 flex items-center justify-center mb-4">
+                <Wand2 size={24} className="text-white dark:text-slate-900" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest bg-primary px-2 py-1 rounded-full text-white">Pro</span>
             </div>
             <div>
               <h2 className="text-2xl font-bold tracking-tight mb-1">Create with AI</h2>
@@ -410,7 +480,7 @@ const Dashboard: React.FC = () => {
                 onClick={() => setShowSubscriptionModal(true)}
                 className="w-full h-12 rounded-2xl bg-white text-orange-600 font-black text-sm hover:bg-white/90 transition-colors"
               >
-                Go Premium
+                Go Pro
               </button>
             </div>
           </section>
@@ -432,7 +502,7 @@ const Dashboard: React.FC = () => {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-widest opacity-60">Current Plan</p>
-                  <h4 className="text-2xl font-bold">{profile?.isPremium ? 'Premium' : 'Free'}</h4>
+                  <h4 className="text-2xl font-bold">{profile?.isPremium ? 'Pro' : 'Free'}</h4>
                 </div>
                 <div className={`p-2 rounded-full ${profile?.isPremium ? 'bg-emerald-500 text-white' : 'bg-primary text-white'}`}>
                   {profile?.isPremium ? <Check size={20} /> : <Star size={20} />}
@@ -442,32 +512,25 @@ const Dashboard: React.FC = () => {
               {!profile?.isPremium && (
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black tracking-tight">₹499</span>
-                    <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/month</span>
+                    <span className="text-4xl font-black tracking-tight">{planConfig?.currency || '₹'}{planConfig?.price || '499'}</span>
+                    <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/{planConfig?.billingCycle || 'year'}</span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Billed monthly. Cancel anytime.</p>
                 </div>
               )}
               
               <ul className="space-y-3 mb-6">
-                <li className="flex items-center gap-3 text-sm">
-                  <div className="size-6 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
-                    <Check size={14} />
-                  </div>
-                  <span className="font-medium">Unlimited Resumes</span>
-                </li>
-                <li className="flex items-center gap-3 text-sm">
-                  <div className="size-6 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
-                    <Check size={14} />
-                  </div>
-                  <span className="font-medium">AI Content Generation</span>
-                </li>
-                <li className="flex items-center gap-3 text-sm">
-                  <div className="size-6 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
-                    <Check size={14} />
-                  </div>
-                  <span className="font-medium">Premium Templates</span>
-                </li>
+                {(planConfig?.features || [
+                  "AI Content Generation",
+                  "AI Resume Analysis & Scoring",
+                  "AI Text Improvement"
+                ]).map((feature, idx) => (
+                  <li key={idx} className="flex items-center gap-3 text-sm">
+                    <div className="size-6 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+                      <Check size={14} />
+                    </div>
+                    <span className="font-medium">{feature}</span>
+                  </li>
+                ))}
               </ul>
 
               {!profile?.isPremium && (
@@ -480,7 +543,7 @@ const Dashboard: React.FC = () => {
                   className="w-full h-12 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
                 >
                   <Sparkles size={18} />
-                  {isUpgrading ? "Processing..." : "Upgrade for ₹499"}
+                  {isUpgrading ? "Processing..." : `Upgrade for ${planConfig?.currency || '₹'}${planConfig?.price || '499'}`}
                 </button>
               )}
             </div>

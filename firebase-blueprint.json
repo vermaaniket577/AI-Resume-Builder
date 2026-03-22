@@ -10,6 +10,7 @@
         "displayName": { "type": "string" },
         "photoURL": { "type": "string" },
         "isPremium": { "type": "boolean" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
         "resumeCount": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" },
         "lastResumeData": { "$ref": "Resume", "description": "Latest resume data for pre-filling" }
@@ -87,6 +88,22 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "company", "location", "salary", "type"]
+    },
+    "Config": {
+      "title": "System Configuration",
+      "description": "Stores system-wide settings like subscription plans",
+      "type": "object",
+      "properties": {
+        "plan": {
+          "type": "object",
+          "properties": {
+            "price": { "type": "number" },
+            "currency": { "type": "string" },
+            "billingCycle": { "type": "string" },
+            "features": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
     }
   },
   "firestore": {
@@ -101,6 +118,10 @@
     "/jobs/{jobId}": {
       "schema": "Job",
       "description": "Job postings"
+    },
+    "/config/{configId}": {
+      "schema": "Config",
+      "description": "Global configuration settings"
     }
   }
 }

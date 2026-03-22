@@ -8,7 +8,7 @@ import {
   useNavigate
 } from 'react-router-dom';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { UserProfile } from './types';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -23,6 +23,7 @@ import TemplateSelection from './screens/TemplateSelection';
 import Analysis from './screens/Analysis';
 import Settings from './screens/Settings';
 import Score from './screens/Score';
+import Admin from './screens/Admin';
 
 // Components
 import Layout from './components/Layout';
@@ -52,7 +53,14 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         // Use onSnapshot to listen for real-time updates to the profile
         unsubscribeProfile = onSnapshot(userDoc, async (docSnap) => {
           if (docSnap.exists()) {
-            setProfile(docSnap.data() as UserProfile);
+            const data = docSnap.data() as UserProfile;
+            // Ensure master admin always has admin role
+            if (firebaseUser.email === 'vermaaniket577@gmail.com' && data.role !== 'admin') {
+              await updateDoc(userDoc, { role: 'admin' });
+              // The next snapshot will have the updated role
+              return;
+            }
+            setProfile(data);
             setLoading(false);
           } else {
             // If profile doesn't exist, create it
@@ -107,6 +115,17 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   if (loading) return <FullScreenLoader message="Starting up..." />;
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+
+  return <>{children}</>;
+};
+
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, profile, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) return <FullScreenLoader message="Verifying admin access..." />;
+  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (profile?.role !== 'admin' || user?.email !== 'vermaaniket577@gmail.com') return <Navigate to="/" replace />;
 
   return <>{children}</>;
 };
@@ -182,6 +201,14 @@ export default function App() {
                   <Settings />
                 </Layout>
               </PrivateRoute>
+            } />
+
+            <Route path="/admin" element={
+              <AdminRoute>
+                <Layout>
+                  <Admin />
+                </Layout>
+              </AdminRoute>
             } />
           </Routes>
         </Router>

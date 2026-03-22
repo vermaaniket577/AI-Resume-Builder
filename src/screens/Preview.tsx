@@ -39,6 +39,24 @@ const Preview: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const navigate = useNavigate();
   const resumeRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.offsetWidth;
+        const padding = 32; // Total horizontal padding
+        const availableWidth = containerWidth - padding;
+        const newScale = Math.min(1, availableWidth / 794);
+        setScale(newScale);
+      }
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, [loading]);
 
   useEffect(() => {
     const fetchResume = async () => {
@@ -73,15 +91,66 @@ const Preview: React.FC = () => {
       }
 
       const canvas = await html2canvas(resumeRef.current, {
-        scale: 2,
+        scale: 2, // 2 is usually enough for high quality and more stable
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: 800,
+        width: 794,
         onclone: (document, element) => {
-          element.style.boxShadow = 'none';
-          element.style.borderRadius = '0';
-          element.style.border = 'none';
+          const el = element as HTMLElement;
+          el.style.transform = 'none';
+          el.style.transformOrigin = 'top center';
+          el.style.width = '794px';
+          el.style.margin = '0';
+          el.style.padding = '48px';
+          el.style.boxShadow = 'none';
+          el.style.borderRadius = '0';
+          el.style.border = 'none';
+          
+          // Force height to be at least A4 height
+          const currentHeight = el.offsetHeight;
+          const minA4Height = 1123;
+          if (currentHeight < minA4Height) {
+            el.style.minHeight = `${minA4Height}px`;
+          }
+          
+          // Ensure all text is visible and correctly colored for print
+          const textElements = el.querySelectorAll('*');
+          textElements.forEach((node) => {
+            const htmlNode = node as HTMLElement;
+            const style = window.getComputedStyle(htmlNode);
+            
+            // Fix for transparent text
+            if (style.color === 'rgba(0, 0, 0, 0)' || style.color === 'transparent') {
+              htmlNode.style.color = '#000000';
+            }
+            
+            // Fix for potential issues with text-justify in html2canvas
+            if (style.textAlign === 'justify') {
+              htmlNode.style.textAlign = 'left';
+            }
+          });
+
+          // Fix flex column for skills and centering in PDF
+          const skillContainers = el.querySelectorAll('.flex.flex-col.items-center');
+          skillContainers.forEach(s => {
+            const container = s as HTMLElement;
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.alignItems = 'center';
+            container.style.width = '100%';
+            
+            // Ensure child spans are centered and have margin
+            const items = container.querySelectorAll('span');
+            items.forEach((item, idx) => {
+              const span = item as HTMLElement;
+              span.style.display = 'inline-block';
+              span.style.textAlign = 'center';
+              if (idx !== items.length - 1) {
+                span.style.marginBottom = '8px';
+              }
+            });
+          });
         }
       });
       
@@ -138,252 +207,267 @@ const Preview: React.FC = () => {
         </button>
       </header>
 
-      <main className="flex-1 p-4 overflow-y-auto pb-32">
-        {/* Resume Paper Preview */}
+      <main className="flex-1 p-4 overflow-y-auto pb-32 bg-slate-100 dark:bg-slate-950/50" ref={containerRef}>
+        {/* Resume Paper Preview Wrapper */}
         <div 
-          ref={resumeRef}
-          className={`w-full bg-white text-slate-900 shadow-xl rounded-lg overflow-hidden border border-slate-100 min-h-[600px] flex flex-col p-8 text-[8px] sm:text-[9px] leading-relaxed ${
-            selectedTemplate === 'minimal' || selectedTemplate === 'ats' ? 'font-mono' : 
-            selectedTemplate === 'elegant' || selectedTemplate === 'executive' ? 'font-serif' : 'font-sans'
-          }`}
+          className="flex justify-center transition-all duration-300"
+          style={{ height: resumeRef.current ? `${resumeRef.current.offsetHeight * scale}px` : 'auto' }}
         >
-          {/* Layout: Centered (Elegant, Executive, Professional/Classic) */}
-          {(selectedTemplate === 'elegant' || selectedTemplate === 'executive' || selectedTemplate === 'classic') ? (
-            <div className="flex flex-col items-center text-center mb-6 border-b-2 pb-4" style={{ borderColor: selectedColor }}>
-              <h1 className="text-xl font-bold uppercase tracking-tighter mb-1">{resume.personalInfo.fullName}</h1>
-              <p className="font-bold text-[10px] mb-2" style={{ color: selectedColor }}>{resume.experience[0]?.role || 'Professional'}</p>
-              <div className="flex flex-wrap justify-center gap-x-4 text-slate-500 text-[8px]">
-                <span>{resume.personalInfo.email}</span>
-                <span>{resume.personalInfo.phone}</span>
-                <span>{resume.personalInfo.location}</span>
-                {resume.personalInfo.github && <span>GitHub: {resume.personalInfo.github}</span>}
-                {resume.personalInfo.twitter && <span>Twitter: {resume.personalInfo.twitter}</span>}
-                {resume.personalInfo.linkedin && <span>LinkedIn: {resume.personalInfo.linkedin}</span>}
-                {resume.personalInfo.portfolio && <span>Portfolio: {resume.personalInfo.portfolio}</span>}
-              </div>
-            </div>
-          ) : (selectedTemplate === 'two-column' || selectedTemplate === 'modern-sidebar') ? (
-            /* Layout: Two Column Header handled inside the main grid */
-            null
-          ) : (
-            /* Layout: Standard (Modern, Minimal, ATS, Creative) */
-            <div className={`pb-4 mb-4 flex justify-between items-start ${selectedTemplate === 'modern' ? 'border-l-8 pl-4' : 'border-b-2'} `} style={{ borderColor: selectedColor }}>
-              <div className="flex-1">
-                <h1 className="text-lg font-bold text-slate-900 uppercase tracking-tight">{resume.personalInfo.fullName}</h1>
-                <p className="font-bold text-[10px]" style={{ color: selectedColor }}>{resume.experience[0]?.role || 'Professional'}</p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-slate-500 text-[8px]">
-                  <span>{resume.personalInfo.email}</span>
-                  <span>{resume.personalInfo.phone}</span>
-                  <span>{resume.personalInfo.location}</span>
-                  {resume.personalInfo.github && <span>GH: {resume.personalInfo.github}</span>}
-                  {resume.personalInfo.twitter && <span>TW: {resume.personalInfo.twitter}</span>}
-                  {resume.personalInfo.linkedin && <span>LI: {resume.personalInfo.linkedin}</span>}
-                  {resume.personalInfo.portfolio && <span>Web: {resume.personalInfo.portfolio}</span>}
+          <div 
+            ref={resumeRef}
+            style={{ 
+              width: '794px', 
+              minHeight: '1123px',
+              transform: `scale(${scale})`,
+              transformOrigin: 'top center',
+              backgroundColor: 'white',
+              color: '#1e293b',
+              padding: '48px',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
+            }}
+            className={`flex flex-col text-[11px] leading-relaxed shrink-0 ${
+              selectedTemplate === 'minimal' || selectedTemplate === 'ats' ? 'font-mono' : 
+              selectedTemplate === 'elegant' || selectedTemplate === 'executive' ? 'font-serif' : 'font-sans'
+            }`}
+          >
+            {/* Layout: Centered (Elegant, Executive, Professional/Classic) */}
+            {(selectedTemplate === 'elegant' || selectedTemplate === 'executive' || selectedTemplate === 'classic') ? (
+              <div className="flex flex-col items-center text-center mb-8 border-b-2 pb-6" style={{ borderColor: selectedColor }}>
+                <h1 className="text-3xl font-bold uppercase tracking-tighter mb-2">{resume.personalInfo.fullName}</h1>
+                <p className="font-bold text-sm mb-4" style={{ color: selectedColor }}>{resume.experience[0]?.role || 'Professional'}</p>
+                <div className="flex flex-wrap justify-center -m-1 text-slate-500 text-[10px]">
+                  <span className="m-1">{resume.personalInfo.email}</span>
+                  <span className="m-1">{resume.personalInfo.phone}</span>
+                  <span className="m-1">{resume.personalInfo.location}</span>
+                  {resume.personalInfo.github && <span className="m-1">GitHub: {resume.personalInfo.github}</span>}
+                  {resume.personalInfo.twitter && <span className="m-1">Twitter: {resume.personalInfo.twitter}</span>}
+                  {resume.personalInfo.linkedin && <span className="m-1">LinkedIn: {resume.personalInfo.linkedin}</span>}
+                  {resume.personalInfo.portfolio && <span className="m-1">Portfolio: {resume.personalInfo.portfolio}</span>}
                 </div>
               </div>
-              {resume.personalInfo.photoUrl && selectedTemplate !== 'ats' && (
-                <div className="size-20 rounded-lg overflow-hidden border-2 ml-4" style={{ borderColor: selectedColor }}>
-                  <img src={resume.personalInfo.photoUrl} alt="Profile" className="w-full h-full object-cover" />
+            ) : (selectedTemplate === 'two-column' || selectedTemplate === 'modern-sidebar') ? (
+              /* Layout: Two Column Header handled inside the main grid */
+              null
+            ) : (
+              /* Layout: Standard (Modern, Minimal, ATS, Creative) */
+              <div className={`pb-6 mb-6 flex justify-between items-start ${selectedTemplate === 'modern' ? 'border-l-8 pl-6' : 'border-b-2'} `} style={{ borderColor: selectedColor }}>
+                <div className="flex-1">
+                  <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">{resume.personalInfo.fullName}</h1>
+                  <p className="font-bold text-sm" style={{ color: selectedColor }}>{resume.experience[0]?.role || 'Professional'}</p>
+                  <div className="flex flex-wrap -m-1 mt-3 text-slate-500 text-[10px]">
+                    <span className="m-1">{resume.personalInfo.email}</span>
+                    <span className="m-1">{resume.personalInfo.phone}</span>
+                    <span className="m-1">{resume.personalInfo.location}</span>
+                    {resume.personalInfo.github && <span className="m-1">GH: {resume.personalInfo.github}</span>}
+                    {resume.personalInfo.twitter && <span className="m-1">TW: {resume.personalInfo.twitter}</span>}
+                    {resume.personalInfo.linkedin && <span className="m-1">LI: {resume.personalInfo.linkedin}</span>}
+                    {resume.personalInfo.portfolio && <span className="m-1">Web: {resume.personalInfo.portfolio}</span>}
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Main Content Area */}
-          {(selectedTemplate === 'two-column' || selectedTemplate === 'modern-sidebar') ? (
-            <div className="flex gap-6 flex-1">
-              {/* Sidebar */}
-              <aside className="w-1/3 space-y-6 border-r pr-6" style={{ borderColor: `${selectedColor}20` }}>
-                {resume.personalInfo.photoUrl && (
-                  <div className="aspect-square rounded-2xl overflow-hidden border-2 mb-4" style={{ borderColor: selectedColor }}>
+                {resume.personalInfo.photoUrl && selectedTemplate !== 'ats' && (
+                  <div className="size-24 rounded-lg overflow-hidden border-2 ml-6" style={{ borderColor: selectedColor }}>
                     <img src={resume.personalInfo.photoUrl} alt="Profile" className="w-full h-full object-cover" />
                   </div>
                 )}
-                
-                <section>
-                  <h3 className="text-[8px] font-bold uppercase tracking-widest mb-2" style={{ color: selectedColor }}>Contact</h3>
-                  <div className="space-y-1 text-slate-600">
-                    <p className="break-all">{resume.personalInfo.email}</p>
-                    <p>{resume.personalInfo.phone}</p>
-                    <p>{resume.personalInfo.location}</p>
-                    {resume.personalInfo.github && <p className="break-all">GH: {resume.personalInfo.github}</p>}
-                    {resume.personalInfo.twitter && <p className="break-all">TW: {resume.personalInfo.twitter}</p>}
-                    {resume.personalInfo.linkedin && <p className="break-all">LI: {resume.personalInfo.linkedin}</p>}
-                    {resume.personalInfo.portfolio && <p className="break-all">Web: {resume.personalInfo.portfolio}</p>}
-                  </div>
-                </section>
+              </div>
+            )}
 
-                <section>
-                  <h3 className="text-[8px] font-bold uppercase tracking-widest mb-2" style={{ color: selectedColor }}>Skills</h3>
-                  <div className="flex flex-wrap gap-1">
-                    {resume.skills.map(s => (
-                      <span key={s} className="px-2 py-0.5 bg-slate-100 rounded text-[8px] font-medium">{s}</span>
-                    ))}
-                  </div>
-                </section>
-
-                {resume.languages && resume.languages.length > 0 && (
+            {/* Main Content Area */}
+            {(selectedTemplate === 'two-column' || selectedTemplate === 'modern-sidebar') ? (
+              <div className="flex -mx-4 flex-1">
+                {/* Sidebar */}
+                <aside className="w-1/3 space-y-8 border-r px-4" style={{ borderColor: `${selectedColor}20` }}>
+                  {resume.personalInfo.photoUrl && (
+                    <div className="aspect-square rounded-2xl overflow-hidden border-2 mb-6" style={{ borderColor: selectedColor }}>
+                      <img src={resume.personalInfo.photoUrl} alt="Profile" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  
                   <section>
-                    <h3 className="text-[8px] font-bold uppercase tracking-widest mb-2" style={{ color: selectedColor }}>Languages</h3>
-                    <div className="space-y-1">
-                      {resume.languages.map(l => <p key={l} className="text-slate-600">{l}</p>)}
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: selectedColor }}>Contact</h3>
+                    <div className="space-y-2 text-slate-600 text-[10px]">
+                      <p className="break-all">{resume.personalInfo.email}</p>
+                      <p>{resume.personalInfo.phone}</p>
+                      <p>{resume.personalInfo.location}</p>
+                      {resume.personalInfo.github && <p className="break-all">GH: {resume.personalInfo.github}</p>}
+                      {resume.personalInfo.twitter && <p className="break-all">TW: {resume.personalInfo.twitter}</p>}
+                      {resume.personalInfo.linkedin && <p className="break-all">LI: {resume.personalInfo.linkedin}</p>}
+                      {resume.personalInfo.portfolio && <p className="break-all">Web: {resume.personalInfo.portfolio}</p>}
                     </div>
                   </section>
-                )}
-              </aside>
 
-              {/* Main Column */}
-              <div className="flex-1 space-y-6">
-                <header>
-                  <h1 className="text-lg font-bold uppercase">{resume.personalInfo.fullName}</h1>
-                  <p className="font-bold text-[10px]" style={{ color: selectedColor }}>{resume.experience[0]?.role}</p>
-                </header>
+                  <section>
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest mb-3 text-center" style={{ color: selectedColor }}>Skills</h3>
+                    <div className="flex flex-col items-center">
+                      {resume.skills.map((s, idx) => (
+                        <span key={s} className={`px-2 py-1 bg-slate-100 rounded text-[10px] font-medium inline-block ${idx !== resume.skills.length - 1 ? 'mb-2' : ''}`}>{s}</span>
+                      ))}
+                    </div>
+                  </section>
 
+                  {resume.languages && resume.languages.length > 0 && (
+                    <section>
+                      <h3 className="text-[10px] font-bold uppercase tracking-widest mb-3 text-center" style={{ color: selectedColor }}>Languages</h3>
+                      <div className="space-y-2 text-[10px] text-center">
+                        {resume.languages.map(l => <p key={l} className="text-slate-600">{l}</p>)}
+                      </div>
+                    </section>
+                  )}
+                </aside>
+
+                {/* Main Column */}
+                <div className="flex-1 space-y-8 px-4">
+                  <header>
+                    <h1 className="text-2xl font-bold uppercase">{resume.personalInfo.fullName}</h1>
+                    <p className="font-bold text-sm" style={{ color: selectedColor }}>{resume.experience[0]?.role}</p>
+                  </header>
+
+                  <section>
+                    <h3 className="text-xs font-bold border-b mb-3 uppercase tracking-wider" style={{ color: selectedColor, borderColor: `${selectedColor}20` }}>Summary</h3>
+                    <p className="text-slate-700 leading-relaxed text-left text-[11px]">{resume.summary}</p>
+                  </section>
+
+                  <section>
+                    <h3 className="text-xs font-bold border-b mb-3 uppercase tracking-wider" style={{ color: selectedColor, borderColor: `${selectedColor}20` }}>Experience</h3>
+                    <div className="space-y-6">
+                      {resume.experience.map(exp => (
+                        <div key={exp.id}>
+                          <div className="flex justify-between font-bold text-[11px]">
+                            <span>{exp.role}</span>
+                            <span style={{ color: selectedColor }}>{exp.startDate} - {exp.endDate}</span>
+                          </div>
+                          <p className="italic text-slate-600 text-[10px]">{exp.company}</p>
+                          <p className="mt-2 text-slate-700 whitespace-pre-line text-left text-[11px]">{exp.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-xs font-bold border-b mb-3 uppercase tracking-wider" style={{ color: selectedColor, borderColor: `${selectedColor}20` }}>Education</h3>
+                    <div className="space-y-4">
+                      {resume.education.map(edu => (
+                        <div key={edu.id}>
+                          <p className="font-bold text-[11px]">{edu.degree}</p>
+                          <p className="text-slate-600 text-[10px]">{edu.school} | {edu.gradDate}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {resume.projects && resume.projects.length > 0 && (
+                    <section>
+                      <h3 className="text-xs font-bold border-b mb-3 uppercase tracking-wider" style={{ color: selectedColor, borderColor: `${selectedColor}20` }}>Projects</h3>
+                      <div className="space-y-4">
+                        {resume.projects.map(p => (
+                          <div key={p.id}>
+                            <div className="flex justify-between items-baseline">
+                              <span className="font-bold text-[11px]">{p.name}</span>
+                              {p.link && <span className="text-[10px] text-primary italic">{p.link}</span>}
+                            </div>
+                            <p className="text-slate-700 leading-relaxed text-left text-[11px]">{p.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Standard Single Column Layout */
+              <div className={`${selectedTemplate === 'minimal' || selectedTemplate === 'ats' ? 'space-y-8' : 'space-y-6'}`}>
+                {/* Summary */}
                 <section>
-                  <h3 className="text-[9px] font-bold border-b mb-2 uppercase tracking-wider" style={{ color: selectedColor, borderColor: `${selectedColor}20` }}>Summary</h3>
-                  <p className="text-slate-700 leading-relaxed text-justify">{resume.summary}</p>
+                  <h3 className={`text-xs font-bold border-b mb-3 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-2 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>
+                    {selectedTemplate === 'minimal' ? 'Objective' : 'Summary'}
+                  </h3>
+                  <p className="text-slate-700 leading-relaxed text-left text-[11px]">{resume.summary}</p>
                 </section>
 
+                {/* Experience */}
                 <section>
-                  <h3 className="text-[9px] font-bold border-b mb-2 uppercase tracking-wider" style={{ color: selectedColor, borderColor: `${selectedColor}20` }}>Experience</h3>
-                  <div className="space-y-4">
-                    {resume.experience.map(exp => (
+                  <h3 className={`text-xs font-bold border-b mb-3 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-2 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Experience</h3>
+                  <div className="space-y-5">
+                    {resume.experience.map((exp) => (
                       <div key={exp.id}>
-                        <div className="flex justify-between font-bold">
+                        <div className="flex justify-between font-bold text-[11px]">
                           <span>{exp.role}</span>
                           <span style={{ color: selectedColor }}>{exp.startDate} - {exp.endDate}</span>
                         </div>
-                        <p className="italic text-slate-600">{exp.company}</p>
-                        <p className="mt-1 text-slate-700 whitespace-pre-line text-justify">{exp.description}</p>
+                        <p className="italic text-slate-600 font-semibold text-[10px]">{exp.company}</p>
+                        <p className="mt-2 text-slate-700 whitespace-pre-line leading-snug text-left text-[11px]">{exp.description}</p>
                       </div>
                     ))}
                   </div>
                 </section>
 
-                <section>
-                  <h3 className="text-[9px] font-bold border-b mb-2 uppercase tracking-wider" style={{ color: selectedColor, borderColor: `${selectedColor}20` }}>Education</h3>
-                  <div className="space-y-3">
-                    {resume.education.map(edu => (
-                      <div key={edu.id}>
-                        <p className="font-bold">{edu.degree}</p>
-                        <p className="text-slate-600">{edu.school} | {edu.gradDate}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                {resume.projects && resume.projects.length > 0 && (
-                  <section>
-                    <h3 className="text-[9px] font-bold border-b mb-2 uppercase tracking-wider" style={{ color: selectedColor, borderColor: `${selectedColor}20` }}>Projects</h3>
+                <div className="flex items-center -mx-4">
+                  {/* Education */}
+                  <section className="w-1/2 px-4">
+                    <h3 className={`text-xs font-bold border-b mb-3 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-2 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Education</h3>
                     <div className="space-y-3">
-                      {resume.projects.map(p => (
-                        <div key={p.id}>
-                          <div className="flex justify-between items-baseline">
-                            <span className="font-bold">{p.name}</span>
-                            {p.link && <span className="text-[8px] text-primary italic">{p.link}</span>}
-                          </div>
-                          <p className="text-slate-700 leading-relaxed text-justify">{p.description}</p>
+                      {resume.education.map((edu) => (
+                        <div key={edu.id}>
+                          <p className="font-bold text-[11px]">{edu.degree}</p>
+                          <p className="text-slate-600 text-[10px]">{edu.school}</p>
+                          <p className="text-[10px] text-slate-400">{edu.gradDate}</p>
                         </div>
                       ))}
                     </div>
                   </section>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Standard Single Column Layout */
-            <div className={`${selectedTemplate === 'minimal' || selectedTemplate === 'ats' ? 'space-y-6' : 'space-y-4'}`}>
-              {/* Summary */}
-              <section>
-                <h3 className={`text-[9px] font-bold border-b mb-2 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-1 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>
-                  {selectedTemplate === 'minimal' ? 'Objective' : 'Summary'}
-                </h3>
-                <p className="text-slate-700 leading-relaxed text-justify">{resume.summary}</p>
-              </section>
 
-              {/* Experience */}
-              <section>
-                <h3 className={`text-[9px] font-bold border-b mb-2 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-1 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Experience</h3>
-                <div className="space-y-3">
-                  {resume.experience.map((exp) => (
-                    <div key={exp.id}>
-                      <div className="flex justify-between font-bold">
-                        <span>{exp.role}</span>
-                        <span style={{ color: selectedColor }}>{exp.startDate} - {exp.endDate}</span>
-                      </div>
-                      <p className="italic text-slate-600 font-semibold">{exp.company}</p>
-                      <p className="mt-1 text-slate-700 whitespace-pre-line leading-snug text-justify">{exp.description}</p>
+                  {/* Skills */}
+                  <section className="w-1/2 px-4">
+                    <h3 className={`text-xs font-bold border-b mb-3 uppercase tracking-wider text-center ${selectedTemplate === 'creative' ? 'bg-slate-100 p-2 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Skills</h3>
+                    <div className="flex flex-col items-center">
+                      {resume.skills.map((skill, idx) => (
+                        <span key={skill} className={`px-2 py-1 rounded text-slate-700 font-medium inline-block text-[10px] ${idx !== resume.skills.length - 1 ? 'mb-2' : ''} ${selectedTemplate === 'ats' ? 'bg-transparent border' : 'bg-slate-100'}`}>{skill}</span>
+                      ))}
                     </div>
-                  ))}
+                  </section>
                 </div>
-              </section>
 
-              <div className="grid grid-cols-2 gap-6">
-                {/* Education */}
-                <section>
-                  <h3 className={`text-[9px] font-bold border-b mb-2 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-1 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Education</h3>
-                  <div className="space-y-2">
-                    {resume.education.map((edu) => (
-                      <div key={edu.id}>
-                        <p className="font-bold">{edu.degree}</p>
-                        <p className="text-slate-600">{edu.school}</p>
-                        <p className="text-[8px] text-slate-400">{edu.gradDate}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                {/* Skills */}
-                <section>
-                  <h3 className={`text-[9px] font-bold border-b mb-2 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-1 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Skills</h3>
-                  <div className="flex flex-wrap gap-1">
-                    {resume.skills.map(skill => (
-                      <span key={skill} className={`px-2 py-0.5 rounded text-slate-700 font-medium ${selectedTemplate === 'ats' ? 'bg-transparent border' : 'bg-slate-100'}`}>{skill}</span>
-                    ))}
-                  </div>
-                </section>
-              </div>
-
-              {/* Projects & Certs */}
-              <div className="grid grid-cols-2 gap-6">
-                {resume.projects && resume.projects.length > 0 && (
-                  <section className="col-span-2">
-                    <h3 className={`text-[9px] font-bold border-b mb-2 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-1 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Projects</h3>
-                    <div className="space-y-2">
-                      {resume.projects.map(p => (
-                        <div key={p.id}>
-                          <div className="flex justify-between items-baseline">
-                            <span className="font-bold">{p.name}</span>
-                            {p.link && <span className="text-[8px] text-primary italic">{p.link}</span>}
+                {/* Projects & Certs */}
+                <div className="flex flex-wrap -mx-4">
+                  {resume.projects && resume.projects.length > 0 && (
+                    <section className="w-full px-4 mb-6">
+                      <h3 className={`text-xs font-bold border-b mb-3 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-2 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Projects</h3>
+                      <div className="space-y-3">
+                        {resume.projects.map(p => (
+                          <div key={p.id}>
+                            <div className="flex justify-between items-baseline">
+                              <span className="font-bold text-[11px]">{p.name}</span>
+                              {p.link && <span className="text-[10px] text-primary italic">{p.link}</span>}
+                            </div>
+                            <p className="text-slate-600 leading-tight text-left text-[11px]">{p.description}</p>
                           </div>
-                          <p className="text-slate-600 leading-tight text-justify">{p.description}</p>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {resume.certifications && resume.certifications.length > 0 && (
+                    <section className="w-1/2 px-4">
+                      <h3 className={`text-xs font-bold border-b mb-3 uppercase tracking-wider text-center ${selectedTemplate === 'creative' ? 'bg-slate-100 p-2 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Certifications</h3>
+                      <ul className="list-disc list-inside text-slate-700 space-y-2 text-[10px] text-center">
+                        {resume.certifications.map(c => <li key={c}>{c}</li>)}
+                      </ul>
+                    </section>
+                  )}
+                </div>
+
+                {/* Languages */}
+                {resume.languages && resume.languages.length > 0 && (
+                  <section>
+                    <h3 className={`text-xs font-bold border-b mb-3 uppercase tracking-wider text-center ${selectedTemplate === 'creative' ? 'bg-slate-100 p-2 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Languages</h3>
+                    <div className="flex flex-wrap justify-center -m-1">
+                      {resume.languages.map(l => <span key={l} className="m-1 text-slate-700 font-medium inline-block text-[10px]">{l}</span>)}
                     </div>
                   </section>
                 )}
-
-                {resume.certifications && resume.certifications.length > 0 && (
-                  <section>
-                    <h3 className={`text-[9px] font-bold border-b mb-2 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-1 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Certifications</h3>
-                    <ul className="list-disc list-inside text-slate-700 space-y-1">
-                      {resume.certifications.map(c => <li key={c}>{c}</li>)}
-                    </ul>
-                  </section>
-                )}
               </div>
-
-              {/* Languages */}
-              {resume.languages && resume.languages.length > 0 && (
-                <section>
-                  <h3 className={`text-[9px] font-bold border-b mb-2 uppercase tracking-wider ${selectedTemplate === 'creative' ? 'bg-slate-100 p-1 rounded-r-lg border-l-4' : ''}`} style={{ color: selectedColor, borderColor: selectedTemplate === 'creative' ? selectedColor : `${selectedColor}20` }}>Languages</h3>
-                  <div className="flex gap-4">
-                    {resume.languages.map(l => <span key={l} className="text-slate-700 font-medium">{l}</span>)}
-                  </div>
-                </section>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </main>
 
