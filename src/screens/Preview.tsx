@@ -8,6 +8,8 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { FullScreenLoader } from '../components/Loader';
 
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+
 const TEMPLATES = [
   { id: 'classic', name: 'Classic', icon: <LayoutIcon size={16} /> },
   { id: 'modern', name: 'Modern', icon: <LayoutIcon size={16} /> },
@@ -183,9 +185,135 @@ const Preview: React.FC = () => {
       }
       
       pdf.save(fileName);
-      setShowOptions(false);
     } catch (err) {
       console.error("PDF generation error:", err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDownloadTxt = () => {
+    if (!resume) return;
+    
+    let txt = `${resume.personalInfo.fullName}\n`;
+    txt += `${resume.personalInfo.email} | ${resume.personalInfo.phone} | ${resume.personalInfo.location}\n\n`;
+    
+    txt += `SUMMARY\n${resume.summary}\n\n`;
+    
+    txt += `EXPERIENCE\n`;
+    resume.experience.forEach(exp => {
+      txt += `${exp.role} at ${exp.company}\n`;
+      txt += `${exp.startDate} - ${exp.endDate}\n`;
+      txt += `${exp.description}\n\n`;
+    });
+    
+    txt += `EDUCATION\n`;
+    resume.education.forEach(edu => {
+      txt += `${edu.degree} from ${edu.school} (${edu.gradDate})\n`;
+    });
+    txt += `\n`;
+    
+    txt += `SKILLS\n${resume.skills.join(', ')}\n\n`;
+    
+    const blob = new Blob([txt], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${resume.title || 'resume'}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadJson = () => {
+    if (!resume) return;
+    const json = JSON.stringify(resume, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${resume.title || 'resume'}_data.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadDocx = async () => {
+    if (!resume) return;
+
+    try {
+      setIsGenerating(true);
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              text: resume.personalInfo.fullName,
+              heading: HeadingLevel.HEADING_1,
+            }),
+            new Paragraph({
+              text: `${resume.personalInfo.email} | ${resume.personalInfo.phone} | ${resume.personalInfo.location}`,
+            }),
+            new Paragraph({ text: "" }),
+            new Paragraph({
+              text: "SUMMARY",
+              heading: HeadingLevel.HEADING_2,
+            }),
+            new Paragraph({ text: resume.summary }),
+            new Paragraph({ text: "" }),
+            new Paragraph({
+              text: "EXPERIENCE",
+              heading: HeadingLevel.HEADING_2,
+            }),
+            ...resume.experience.flatMap(exp => [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: exp.role, bold: true }),
+                  new TextRun({ text: ` at ${exp.company}` }),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `${exp.startDate} - ${exp.endDate}`, italics: true }),
+                ],
+              }),
+              new Paragraph({ text: exp.description }),
+              new Paragraph({ text: "" }),
+            ]),
+            new Paragraph({
+              text: "EDUCATION",
+              heading: HeadingLevel.HEADING_2,
+            }),
+            ...resume.education.flatMap(edu => [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: edu.degree, bold: true }),
+                  new TextRun({ text: ` from ${edu.school}` }),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: edu.gradDate, italics: true }),
+                ],
+              }),
+              new Paragraph({ text: "" }),
+            ]),
+            new Paragraph({
+              text: "SKILLS",
+              heading: HeadingLevel.HEADING_2,
+            }),
+            new Paragraph({ text: resume.skills.join(', ') }),
+          ],
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${resume.title || 'resume'}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("DOCX generation error:", err);
     } finally {
       setIsGenerating(false);
     }
@@ -493,7 +621,7 @@ const Preview: React.FC = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 w-full max-w-md md:max-w-lg rounded-3xl p-6 animate-in zoom-in-95 duration-300">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">Customize PDF</h3>
+              <h3 className="text-xl font-bold">Download Options</h3>
               <button onClick={() => setShowOptions(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
                 <X size={20} />
               </button>
@@ -531,10 +659,34 @@ const Preview: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-3 gap-3 mt-4">
+                <button 
+                  onClick={handleDownloadDocx}
+                  className="w-full h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold flex flex-col items-center justify-center gap-1 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs"
+                >
+                  <Download size={16} />
+                  Word (.docx)
+                </button>
+                <button 
+                  onClick={handleDownloadTxt}
+                  className="w-full h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold flex flex-col items-center justify-center gap-1 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs"
+                >
+                  <Download size={16} />
+                  Text (.txt)
+                </button>
+                <button 
+                  onClick={handleDownloadJson}
+                  className="w-full h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold flex flex-col items-center justify-center gap-1 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs"
+                >
+                  <Download size={16} />
+                  Data (.json)
+                </button>
+              </div>
+
               <button 
                 onClick={handleDownload}
                 disabled={isGenerating}
-                className="w-full h-14 rounded-2xl bg-primary text-white font-bold shadow-xl shadow-primary/30 flex items-center justify-center gap-2 mt-4"
+                className="w-full h-14 rounded-2xl bg-primary text-white font-bold shadow-xl shadow-primary/30 flex items-center justify-center gap-2 mt-2"
               >
                 {isGenerating ? (
                   <>
@@ -544,7 +696,7 @@ const Preview: React.FC = () => {
                 ) : (
                   <>
                     <Download size={20} />
-                    Generate & Download
+                    Generate & Download PDF
                   </>
                 )}
               </button>

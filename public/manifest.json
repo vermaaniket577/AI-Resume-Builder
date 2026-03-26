@@ -1,21 +1,66 @@
 {
+  "id": "ai-resume-builder-pwa",
   "name": "AI Resume Builder",
   "short_name": "ResumeAI",
-  "description": "Professional AI-powered resume builder.",
+  "description": "Professional AI-powered resume builder. Create, analyze, and optimize your resume with advanced AI technology. Get expert tips and download ATS-friendly templates.",
+  "lang": "en-US",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#6366f1",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
-      "src": "https://picsum.photos/seed/resume/192/192",
+      "src": "/logo.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "https://picsum.photos/seed/resume/512/512",
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/logo.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://placehold.co/1080x1920/6366f1/ffffff/png?text=Mobile+App",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile Dashboard"
+    },
+    {
+      "src": "https://placehold.co/1920x1080/6366f1/ffffff/png?text=Desktop+App",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop Preview"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create Resume",
+      "short_name": "Create",
+      "description": "Start building a new resume",
+      "url": "/",
+      "icons": [{ "src": "https://placehold.co/192x192/6366f1/ffffff/png?text=+", "sizes": "192x192" }]
     }
   ]
 }

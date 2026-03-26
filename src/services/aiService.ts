@@ -1,6 +1,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const ai = {
+  get models() {
+    const apiKey = typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : undefined;
+    if (!apiKey) {
+      throw new Error("API key not valid. Please pass a valid API key.");
+    }
+    return new GoogleGenAI({ apiKey }).models;
+  }
+};
 
 function parseJSON(text: string | undefined | null) {
   if (!text) throw new Error("Empty response from AI");

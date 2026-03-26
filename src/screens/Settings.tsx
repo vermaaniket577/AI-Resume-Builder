@@ -27,17 +27,34 @@ const Settings: React.FC = () => {
 
   useEffect(() => {
     const fetchPlanConfig = async () => {
+      if (!user) return;
       try {
         const planDoc = await getDoc(doc(db, 'config', 'plan'));
         if (planDoc.exists()) {
           setPlanConfig(planDoc.data() as PlanConfig);
+        } else {
+          // Fallback if document doesn't exist yet
+          setPlanConfig({
+            price: 499,
+            currency: 'INR',
+            billingCycle: 'year',
+            features: [
+              "AI Content Generation",
+              "AI Resume Analysis & Scoring",
+              "AI Text Improvement"
+            ]
+          });
         }
       } catch (error) {
-        console.error("Error fetching plan config:", error);
+        if (error instanceof Error && error.message.includes('offline')) {
+          console.warn("Firestore is offline. Using fallback plan config.");
+        } else {
+          console.error("Error fetching plan config:", error);
+        }
       }
     };
     fetchPlanConfig();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (toast) {

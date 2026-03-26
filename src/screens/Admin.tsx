@@ -95,9 +95,27 @@ const Admin: React.FC = () => {
         const planSnap = await getDoc(doc(db, 'config', 'plan'));
         if (planSnap.exists()) {
           setPlanConfig(planSnap.data() as PlanConfig);
+        } else {
+          // Fallback if document doesn't exist yet
+          setPlanConfig({
+            price: 499,
+            currency: 'INR',
+            billingCycle: 'year',
+            features: [
+              'AI Resume Analysis',
+              'AI Content Generation',
+              'AI Score Improvement',
+              'Pro Templates',
+              'Priority Support'
+            ]
+          });
         }
       } catch (error) {
-        handleFirestoreError(error, OperationType.LIST, 'admin_data');
+        if (error instanceof Error && error.message.includes('offline')) {
+          console.warn("Firestore is offline. Using fallback plan config.");
+        } else {
+          handleFirestoreError(error, OperationType.LIST, 'admin_data');
+        }
       } finally {
         setLoading(false);
       }

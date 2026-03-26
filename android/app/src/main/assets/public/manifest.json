@@ -1,0 +1,21 @@
+{
+  "name": "AI Resume Builder",
+  "short_name": "ResumeAI",
+  "description": "Professional AI-powered resume builder.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/resume/192/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/seed/resume/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
