@@ -1,7 +1,8 @@
 {
   "name": "AI Resume Builder",
-  "description": "A modern AI-powered resume builder that helps you craft professional, ATS-friendly resumes in minutes.",
-  "requestFramePermissions": [
-    "geolocation"
+  "description": "Professional AI-powered resume builder. Create, analyze, and optimize ATS-friendly resumes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

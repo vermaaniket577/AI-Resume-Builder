@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, orderBy, addDoc, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../App';
-import { Resume, PlanConfig } from '../types';
-import { PlusCircle, FileText, Star, Lightbulb, BarChart, ChevronRight, Sparkles, Trash2, X, AlertTriangle, FileUp, Wand2, Send, Loader2, Check, Shield } from 'lucide-react';
+import { Resume } from '../types';
+import { PlusCircle, FileText, Star, Lightbulb, BarChart, ChevronRight, Sparkles, Trash2, X, AlertTriangle, FileUp, Wand2, Send, Loader2 } from 'lucide-react';
 import { aiService } from '../services/aiService';
 import { motion, AnimatePresence } from 'motion/react';
 import * as pdfjsLib from 'pdfjs-dist';
-import mammoth from 'mammoth/mammoth.browser.js';
-import { FullScreenLoader } from '../components/Loader';
+import mammoth from 'mammoth';
+import { PWAInstallButton } from '../components/PWAInstallButton';
 
 // Initialize PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
@@ -21,53 +21,11 @@ const Dashboard: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
-  const [planConfig, setPlanConfig] = useState<PlanConfig | null>(null);
-
-  useEffect(() => {
-    const fetchPlanConfig = async () => {
-      if (!user) return;
-      try {
-        const planDoc = await getDoc(doc(db, 'config', 'plan'));
-        if (planDoc.exists()) {
-          setPlanConfig(planDoc.data() as PlanConfig);
-        } else {
-          // Fallback if document doesn't exist yet
-          setPlanConfig({
-            price: 499,
-            currency: 'INR',
-            billingCycle: 'year',
-            features: [
-              "AI Content Generation",
-              "AI Resume Analysis & Scoring",
-              "AI Text Improvement"
-            ]
-          });
-        }
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('offline')) {
-          console.warn("Firestore is offline. Using fallback plan config.");
-        } else {
-          console.error("Error fetching plan config:", error);
-        }
-      }
-    };
-    fetchPlanConfig();
-  }, [user]);
-
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const importInputRef = React.useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   useEffect(() => {
     if (!user) return;
@@ -136,7 +94,7 @@ const Dashboard: React.FC = () => {
           const text = await extractTextFromDOCX(file);
           resumeData = await aiService.parseResumeFromText(text);
         } else {
-          setToast({ message: "Unsupported file format. Please upload PDF, DOCX, or JSON.", type: 'error' });
+          alert("Unsupported file format. Please upload PDF, DOCX, or JSON.");
           setLoading(false);
           return;
         }
@@ -144,7 +102,6 @@ const Dashboard: React.FC = () => {
         if (resumeData) {
           const finalResumeData = {
             title: (resumeData.title || 'Imported Resume').substring(0, 90),
-            originalFileName: file.name,
             personalInfo: {
               fullName: resumeData.personalInfo?.fullName || '',
               email: resumeData.personalInfo?.email || '',
@@ -185,7 +142,7 @@ const Dashboard: React.FC = () => {
         }
       } catch (err) {
         console.error("Failed to import resume:", err);
-        setToast({ message: "Failed to parse the file. Please ensure it's a valid resume.", type: 'error' });
+        alert("Failed to parse the file. Please ensure it's a valid resume.");
       } finally {
         setLoading(false);
       }
@@ -209,51 +166,12 @@ const Dashboard: React.FC = () => {
     if (!user) return;
     setIsUpgrading(true);
     try {
-      // 1. Create Order on Backend
-      const response = await fetch('/api/razorpay/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: 499, currency: 'INR' }) // Example price
+      await updateDoc(doc(db, 'users', user.uid), {
+        isPremium: true
       });
-
-      if (!response.ok) throw new Error('Failed to create order');
-      const order = await response.json();
-
-      // 2. Open Razorpay Checkout
-      const options = {
-        key: (process.env as any).RAZORPAY_KEY_ID || '',
-        amount: order.amount,
-        currency: order.currency,
-        name: 'AI Resume Builder',
-        description: 'Pro Subscription',
-        order_id: order.id,
-        handler: async (response: any) => {
-          // Payment success!
-          // The webhook will handle the backend update, but we can also update UI here
-          setToast({ message: "Payment successful! Your account is being upgraded.", type: 'success' });
-          setShowSubscriptionModal(false);
-        },
-        prefill: {
-          name: user.displayName || '',
-          email: user.email || '',
-        },
-        notes: {
-          userId: user.uid
-        },
-        theme: {
-          color: '#4f46e5'
-        }
-      };
-
-      const rzp = new (window as any).Razorpay(options);
-      rzp.on('payment.failed', (response: any) => {
-        setToast({ message: "Payment failed: " + response.error.description, type: 'error' });
-      });
-      rzp.open();
-
-    } catch (error: any) {
-      console.error("Upgrade Error:", error);
-      setToast({ message: "Failed to initiate upgrade: " + error.message, type: 'error' });
+      alert("Congratulations! You are now a Premium member.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
     } finally {
       setIsUpgrading(false);
     }
@@ -310,13 +228,11 @@ const Dashboard: React.FC = () => {
       navigate(`/preview/${docRef.id}`);
     } catch (error: any) {
       console.error("AI Generation failed:", error);
-      setToast({ message: "Something went wrong during generation: " + (error.message || error), type: 'error' });
+      alert("Something went wrong during generation: " + (error.message || error));
     } finally {
       setIsGenerating(false);
     }
   };
-
-  if (loading) return <FullScreenLoader message="Loading your dashboard..." />;
 
   return (
     <div className="w-full max-w-7xl mx-auto min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 pb-20">
@@ -338,25 +254,22 @@ const Dashboard: React.FC = () => {
             Crafted with AI precision.
           </motion.p>
         </div>
-        <motion.div 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="relative group cursor-pointer"
-          onClick={() => navigate('/settings')}
-        >
-          {user?.photoURL ? (
-            <img src={user.photoURL} alt="Profile" className="size-10 rounded-full ring-2 ring-primary/20" />
-          ) : (
-            <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-              <span className="text-xs font-bold">{user?.displayName?.[0] || 'U'}</span>
-            </div>
-          )}
-          {user?.email === 'vermaaniket577@gmail.com' && (
-            <div className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-0.5 border-2 border-white dark:border-slate-950 shadow-sm">
-              <Shield size={10} fill="currentColor" />
-            </div>
-          )}
-        </motion.div>
+        <div className="flex items-center gap-3">
+          <PWAInstallButton variant="badge" />
+          <motion.div 
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="relative"
+          >
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="Profile" className="size-10 rounded-full ring-2 ring-primary/20" />
+            ) : (
+              <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <span className="text-xs font-bold">{user?.displayName?.[0] || 'U'}</span>
+              </div>
+            )}
+          </motion.div>
+        </div>
       </header>
 
       <main className="px-6 space-y-8">
@@ -365,20 +278,11 @@ const Dashboard: React.FC = () => {
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => {
-              if (profile?.isPremium) {
-                setIsAiModalOpen(true);
-              } else {
-                setShowSubscriptionModal(true);
-              }
-            }}
+            onClick={() => setIsAiModalOpen(true)}
             className="relative overflow-hidden group flex flex-col items-start justify-between p-6 rounded-3xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 h-48 sm:h-auto sm:min-h-[12rem] shadow-2xl shadow-slate-900/20 dark:shadow-white/5"
           >
-            <div className="flex justify-between items-start w-full">
-              <div className="size-12 rounded-2xl bg-white/10 dark:bg-slate-900/10 flex items-center justify-center mb-4">
-                <Wand2 size={24} className="text-white dark:text-slate-900" />
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-widest bg-primary px-2 py-1 rounded-full text-white">Pro</span>
+            <div className="size-12 rounded-2xl bg-white/10 dark:bg-slate-900/10 flex items-center justify-center mb-4">
+              <Wand2 size={24} className="text-white dark:text-slate-900" />
             </div>
             <div>
               <h2 className="text-2xl font-bold tracking-tight mb-1">Create with AI</h2>
@@ -494,91 +398,21 @@ const Dashboard: React.FC = () => {
               <h3 className="text-xl font-bold mb-1">Unlock AI Power</h3>
               <p className="text-white/80 text-sm mb-6 leading-snug">Get unlimited AI generations and expert ATS optimization.</p>
               <button 
-                onClick={() => setShowSubscriptionModal(true)}
+                onClick={handleUpgrade}
+                disabled={isUpgrading}
                 className="w-full h-12 rounded-2xl bg-white text-orange-600 font-black text-sm hover:bg-white/90 transition-colors"
               >
-                Go Pro
+                {isUpgrading ? 'Processing...' : 'Go Premium'}
               </button>
             </div>
           </section>
         )}
       </main>
 
-      {/* Subscription Modal */}
-      {showSubscriptionModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 animate-in zoom-in duration-300">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">Subscription</h3>
-              <button onClick={() => setShowSubscriptionModal(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className={`p-6 rounded-3xl border-2 mb-6 ${profile?.isPremium ? 'border-emerald-500 bg-emerald-500/5' : 'border-primary bg-primary/5'}`}>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest opacity-60">Current Plan</p>
-                  <h4 className="text-2xl font-bold">{profile?.isPremium ? 'Pro' : 'Free'}</h4>
-                </div>
-                <div className={`p-2 rounded-full ${profile?.isPremium ? 'bg-emerald-500 text-white' : 'bg-primary text-white'}`}>
-                  {profile?.isPremium ? <Check size={20} /> : <Star size={20} />}
-                </div>
-              </div>
-
-              {!profile?.isPremium && (
-                <div className="mb-6">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black tracking-tight">{planConfig?.currency || '₹'}{planConfig?.price || '499'}</span>
-                    <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/{planConfig?.billingCycle || 'year'}</span>
-                  </div>
-                </div>
-              )}
-              
-              <ul className="space-y-3 mb-6">
-                {(planConfig?.features || [
-                  "AI Content Generation",
-                  "AI Resume Analysis & Scoring",
-                  "AI Text Improvement"
-                ]).map((feature, idx) => (
-                  <li key={idx} className="flex items-center gap-3 text-sm">
-                    <div className="size-6 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
-                      <Check size={14} />
-                    </div>
-                    <span className="font-medium">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              {!profile?.isPremium && (
-                <button 
-                  onClick={() => {
-                    setShowSubscriptionModal(false);
-                    handleUpgrade();
-                  }}
-                  disabled={isUpgrading}
-                  className="w-full h-12 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
-                >
-                  <Sparkles size={18} />
-                  {isUpgrading ? "Processing..." : `Upgrade for ${planConfig?.currency || '₹'}${planConfig?.price || '499'}`}
-                </button>
-              )}
-            </div>
-
-            <button 
-              onClick={() => setShowSubscriptionModal(false)}
-              className="w-full h-12 rounded-xl border-2 border-slate-100 dark:border-slate-800 font-bold"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* AI Generation Modal - Stitch Inspired */}
       <AnimatePresence>
         {isAiModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -587,11 +421,11 @@ const Dashboard: React.FC = () => {
               className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
             />
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[80vh] overflow-hidden"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[80vh] overflow-hidden"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-purple-500 to-emerald-500 z-20" />
               
@@ -756,11 +590,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </section>
-      {toast && (
-        <div className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg text-white ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'} z-50`}>
-          {toast.message}
-        </div>
-      )}
     </div>
   );
 };

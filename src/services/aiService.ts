@@ -1,14 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = {
-  get models() {
-    const apiKey = typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : undefined;
-    if (!apiKey) {
-      throw new Error("API key not valid. Please pass a valid API key.");
-    }
-    return new GoogleGenAI({ apiKey }).models;
-  }
-};
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 function parseJSON(text: string | undefined | null) {
   if (!text) throw new Error("Empty response from AI");
@@ -58,22 +50,6 @@ export const aiService = {
     });
 
     return response.text;
-  },
-
-  async improveText(text: string, context: string = "resume") {
-    const prompt = `Improve the following text for a ${context} to be more impactful, professional, and ATS-friendly. 
-    Fix any grammar issues, use strong action verbs, and quantify results where possible.
-    Return ONLY the improved text, without any conversational filler or quotes.
-    
-    Original Text:
-    "${text}"`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-    });
-
-    return response.text?.trim() || text;
   },
 
   async analyzeResume(resumeData: any) {
@@ -249,138 +225,6 @@ export const aiService = {
             color: { type: Type.STRING }
           },
           required: ["title", "personalInfo", "experience", "education", "skills"]
-        }
-      }
-    });
-
-    return parseJSON(response.text);
-  },
-
-  async applySuggestion(resumeData: any, suggestion: string) {
-    const prompt = `Apply the following improvement suggestion to the resume data to increase its score.
-    Suggestion: "${suggestion}"
-    Resume Data: ${JSON.stringify(resumeData)}
-    
-    Return the updated resume data in JSON format, incorporating the suggestion. Make sure to actually improve the content (e.g., add metrics, improve summary, add keywords) based on the suggestion.
-    The JSON must follow this structure:
-    {
-      "personalInfo": {
-        "fullName": "...",
-        "email": "...",
-        "phone": "...",
-        "location": "...",
-        "linkedin": "...",
-        "github": "...",
-        "twitter": "...",
-        "portfolio": "..."
-      },
-      "summary": "...",
-      "experience": [
-        {
-          "id": "...",
-          "company": "...",
-          "role": "...",
-          "startDate": "...",
-          "endDate": "...",
-          "description": "..."
-        }
-      ],
-      "education": [
-        {
-          "id": "...",
-          "school": "...",
-          "degree": "...",
-          "gradDate": "..."
-        }
-      ],
-      "skills": ["...", "..."],
-      "projects": [
-        {
-          "id": "...",
-          "name": "...",
-          "description": "...",
-          "link": "..."
-        }
-      ],
-      "certifications": ["...", "..."],
-      "languages": ["...", "..."]
-    }
-    
-    Ensure all existing data is preserved unless it needs to be modified to address the suggestion.`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            personalInfo: {
-              type: Type.OBJECT,
-              properties: {
-                fullName: { type: Type.STRING },
-                email: { type: Type.STRING },
-                phone: { type: Type.STRING },
-                location: { type: Type.STRING },
-                linkedin: { type: Type.STRING },
-                github: { type: Type.STRING },
-                twitter: { type: Type.STRING },
-                portfolio: { type: Type.STRING }
-              }
-            },
-            summary: { type: Type.STRING },
-            experience: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  company: { type: Type.STRING },
-                  role: { type: Type.STRING },
-                  startDate: { type: Type.STRING },
-                  endDate: { type: Type.STRING },
-                  description: { type: Type.STRING }
-                }
-              }
-            },
-            education: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  school: { type: Type.STRING },
-                  degree: { type: Type.STRING },
-                  gradDate: { type: Type.STRING }
-                }
-              }
-            },
-            skills: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            },
-            projects: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  name: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  link: { type: Type.STRING }
-                }
-              }
-            },
-            certifications: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            },
-            languages: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            }
-          }
         }
       }
     });

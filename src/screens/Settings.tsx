@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useAuth } from '../App';
-import { PlanConfig } from '../types';
-import { User, Shield, HelpCircle, LogOut, ChevronRight, Moon, Star, ExternalLink, X, Check, Sparkles, Settings as SettingsIcon, Loader2 } from 'lucide-react';
-import { FullScreenLoader } from '../components/Loader';
+import { User, Shield, HelpCircle, LogOut, ChevronRight, Moon, Star, ExternalLink, X, Check, Sparkles, Settings as SettingsIcon, Smartphone, Download } from 'lucide-react';
+import { InstallAppModal } from '../components/InstallAppModal';
 
 const Settings: React.FC = () => {
   const { user, profile } = useAuth();
@@ -21,47 +20,8 @@ const Settings: React.FC = () => {
   });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [planConfig, setPlanConfig] = useState<PlanConfig | null>(null);
-  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-
-  useEffect(() => {
-    const fetchPlanConfig = async () => {
-      if (!user) return;
-      try {
-        const planDoc = await getDoc(doc(db, 'config', 'plan'));
-        if (planDoc.exists()) {
-          setPlanConfig(planDoc.data() as PlanConfig);
-        } else {
-          // Fallback if document doesn't exist yet
-          setPlanConfig({
-            price: 499,
-            currency: 'INR',
-            billingCycle: 'year',
-            features: [
-              "AI Content Generation",
-              "AI Resume Analysis & Scoring",
-              "AI Text Improvement"
-            ]
-          });
-        }
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('offline')) {
-          console.warn("Firestore is offline. Using fallback plan config.");
-        } else {
-          console.error("Error fetching plan config:", error);
-        }
-      }
-    };
-    fetchPlanConfig();
-  }, [user]);
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -88,7 +48,7 @@ const Settings: React.FC = () => {
         isPremium: true
       });
       setShowSubscriptionModal(false);
-      setToast({ message: "Congratulations! You are now a Pro member.", type: 'success' });
+      alert("Congratulations! You are now a Premium member.");
     } catch (error) {
       console.error("Error upgrading:", error);
     } finally {
@@ -98,7 +58,6 @@ const Settings: React.FC = () => {
 
   return (
     <div className="p-4 pb-24 w-full max-w-3xl mx-auto">
-      {isUpdating && <FullScreenLoader message="Processing..." />}
       <header className="pt-4 pb-6">
         <h1 className="text-2xl font-bold">Settings</h1>
       </header>
@@ -130,9 +89,7 @@ const Settings: React.FC = () => {
               </div>
               <div className="flex flex-col items-start flex-1">
                 <p className="text-base font-semibold">Subscription</p>
-                <p className="text-slate-500 text-xs">
-                  {user?.email === 'vermaaniket577@gmail.com' ? "Admin Access" : (profile?.isPremium ? "Pro Active" : "Free Plan")}
-                </p>
+                <p className="text-slate-500 text-xs">{profile?.isPremium ? "Premium Active" : "Free Plan"}</p>
               </div>
               <ChevronRight size={20} className="text-slate-300" />
             </button>
@@ -152,22 +109,28 @@ const Settings: React.FC = () => {
                 <div className={`absolute top-1 size-4 bg-white rounded-full transition-all duration-300 ${isDarkMode ? 'right-1' : 'left-1'}`}></div>
               </button>
             </div>
+          </div>
+        </section>
 
-            {user?.email === 'vermaaniket577@gmail.com' && (
-              <button 
-                onClick={() => navigate('/admin')}
-                className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-50 dark:border-slate-800"
-              >
-                <div className="bg-amber-500/10 rounded-full p-2 text-amber-600">
-                  <Shield size={20} />
+        <section>
+          <h3 className="text-primary text-xs font-bold uppercase tracking-widest mb-3 ml-1">Mobile & Installation</h3>
+          <div className="bg-white dark:bg-slate-900/50 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm">
+            <button 
+              onClick={() => setShowInstallModal(true)}
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <div className="bg-indigo-500/10 rounded-full p-2 text-indigo-600 dark:text-indigo-400">
+                <Smartphone size={20} />
+              </div>
+              <div className="flex flex-col items-start flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-semibold">Install App / Download APK</p>
+                  <span className="text-[10px] font-extrabold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">Android & Web</span>
                 </div>
-                <div className="flex flex-col items-start flex-1">
-                  <p className="text-base font-semibold">Admin</p>
-                  <p className="text-slate-500 text-xs">Admin Dashboard</p>
-                </div>
-                <ChevronRight size={20} className="text-slate-300" />
-              </button>
-            )}
+                <p className="text-slate-500 text-xs">Run offline, install WebAPK or generate standalone .apk</p>
+              </div>
+              <ChevronRight size={20} className="text-slate-300" />
+            </button>
           </div>
         </section>
 
@@ -204,6 +167,27 @@ const Settings: React.FC = () => {
           </div>
         </section>
 
+        {profile?.role === 'admin' && (
+          <section>
+            <h3 className="text-amber-500 text-xs font-bold uppercase tracking-widest mb-3 ml-1">Admin Management</h3>
+            <div className="bg-white dark:bg-slate-900/50 rounded-2xl overflow-hidden border border-amber-500/20 shadow-sm">
+              <button 
+                onClick={handleUpgrade}
+                className="w-full flex items-center gap-4 p-4 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors"
+              >
+                <div className="bg-amber-500/10 rounded-full p-2 text-amber-500">
+                  <SettingsIcon size={20} />
+                </div>
+                <div className="flex flex-col items-start flex-1">
+                  <p className="text-base font-semibold">Toggle Admin Plan Status</p>
+                  <p className="text-slate-500 text-xs">{profile?.isPremium ? "Premium Active" : "Grant Premium"}</p>
+                </div>
+                <ChevronRight size={20} className="text-slate-300" />
+              </button>
+            </div>
+          </section>
+        )}
+
         <section className="pt-4">
           <button 
             onClick={handleLogout}
@@ -232,14 +216,7 @@ const Settings: React.FC = () => {
                 <User size={48} />
               </div>
               <div className="text-center">
-                <div className="flex items-center justify-center gap-2">
-                  <p className="text-lg font-bold">{profile?.displayName || "User"}</p>
-                  {user?.email === 'vermaaniket577@gmail.com' && (
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 text-[10px] font-black uppercase tracking-wider border border-amber-500/20">
-                      Admin
-                    </span>
-                  )}
-                </div>
+                <p className="text-lg font-bold">{profile?.displayName || "User"}</p>
                 <p className="text-slate-500">{user?.email}</p>
               </div>
             </div>
@@ -253,22 +230,6 @@ const Settings: React.FC = () => {
                 <p className="text-[10px] font-bold uppercase text-slate-400 mb-1">Member Since</p>
                 <p className="text-xs">{profile?.createdAt ? new Date(profile.createdAt.seconds * 1000).toLocaleDateString() : "N/A"}</p>
               </div>
-
-              {user?.email === 'vermaaniket577@gmail.com' && (
-                <Link 
-                  to="/admin" 
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
-                >
-                  <div className="bg-amber-500 rounded-full p-1.5 text-white">
-                    <Shield size={16} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-amber-600 dark:text-amber-500">Admin Panel</p>
-                    <p className="text-[10px] text-amber-600/70 dark:text-amber-500/70">Manage application settings</p>
-                  </div>
-                  <ChevronRight size={16} className="text-amber-500" />
-                </Link>
-              )}
             </div>
 
             <button 
@@ -296,45 +257,36 @@ const Settings: React.FC = () => {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-widest opacity-60">Current Plan</p>
-                  <h4 className="text-2xl font-bold">{profile?.isPremium ? 'Pro' : 'Free'}</h4>
+                  <h4 className="text-2xl font-bold">{profile?.isPremium ? 'Premium' : 'Free'}</h4>
                 </div>
                 <div className={`p-2 rounded-full ${profile?.isPremium ? 'bg-emerald-500 text-white' : 'bg-primary text-white'}`}>
                   {profile?.isPremium ? <Check size={20} /> : <Star size={20} />}
                 </div>
               </div>
-
-              {!profile?.isPremium && (
-                <div className="mb-6">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black tracking-tight">{planConfig?.currency || '₹'}{planConfig?.price || '499'}</span>
-                    <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/{planConfig?.billingCycle || 'year'}</span>
-                  </div>
-                </div>
-              )}
               
-              <ul className="space-y-3 mb-6">
-                {(planConfig?.features || [
-                  "AI Content Generation",
-                  "AI Resume Analysis & Scoring",
-                  "AI Text Improvement"
-                ]).map((feature, idx) => (
-                  <li key={idx} className="flex items-center gap-3 text-sm">
-                    <div className="size-6 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
-                      <Check size={14} />
-                    </div>
-                    <span className="font-medium">{feature}</span>
-                  </li>
-                ))}
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-center gap-2 text-sm">
+                  <Check size={16} className="text-emerald-500" />
+                  <span>Unlimited Resumes</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm">
+                  <Check size={16} className="text-emerald-500" />
+                  <span>AI Content Generation</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm">
+                  <Check size={16} className="text-emerald-500" />
+                  <span>Premium Templates</span>
+                </li>
               </ul>
 
               {!profile?.isPremium && (
                 <button 
                   onClick={handleUpgrade}
                   disabled={isUpdating}
-                  className="w-full h-12 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
+                  className="w-full h-12 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
                 >
                   <Sparkles size={18} />
-                  {isUpdating ? "Processing..." : `Upgrade for ${planConfig?.currency || '₹'}${planConfig?.price || '499'}`}
+                  {isUpdating ? "Processing..." : "Upgrade to Premium"}
                 </button>
               )}
             </div>
@@ -348,11 +300,9 @@ const Settings: React.FC = () => {
           </div>
         </div>
       )}
-      {toast && (
-        <div className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg text-white ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'} z-50`}>
-          {toast.message}
-        </div>
-      )}
+
+      {/* PWA / APK Install Modal */}
+      <InstallAppModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
     </div>
   );
 };

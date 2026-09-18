@@ -37,7 +37,6 @@ export interface Resume {
   id?: string;
   userId: string;
   title: string;
-  originalFileName?: string;
   templateId: string;
   themeColor?: string;
   personalInfo: PersonalInfo;
@@ -79,11 +78,4 @@ export interface Job {
   tags: string[];
   createdAt?: any;
   updatedAt?: any;
-}
-
-export interface PlanConfig {
-  price: number;
-  currency: string;
-  billingCycle: string;
-  features: string[];
 }

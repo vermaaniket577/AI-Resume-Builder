@@ -8,15 +8,13 @@ import { ArrowLeft, ChevronRight, ChevronLeft, Plus, Trash2, Sparkles, Camera, X
 import { aiService } from '../services/aiService';
 import { motion, AnimatePresence } from 'motion/react';
 import * as pdfjsLib from 'pdfjs-dist';
-import mammoth from 'mammoth/mammoth.browser.js';
-import { FullScreenLoader } from '../components/Loader';
-import { AIAssistedTextarea } from '../components/AIAssistedTextarea';
+import mammoth from 'mammoth';
 
 // Initialize PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 const Wizard: React.FC = () => {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -24,14 +22,6 @@ const Wizard: React.FC = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(!!id);
-  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   // Form State
   const [title, setTitle] = useState('My New Resume');
@@ -57,7 +47,6 @@ const Wizard: React.FC = () => {
   const [newCert, setNewCert] = useState('');
   const [languages, setLanguages] = useState<string[]>([]);
   const [newLang, setNewLang] = useState('');
-  const [originalFileName, setOriginalFileName] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const fetchResume = async () => {
@@ -73,12 +62,11 @@ const Wizard: React.FC = () => {
           if (docSnap.exists()) {
             const data = docSnap.data() as Resume;
             if (data.userId !== user.uid) {
-              setToast({ message: "Unauthorized access", type: 'error' });
+              alert("Unauthorized access");
               navigate('/');
               return;
             }
             setTitle(data.title);
-            setOriginalFileName(data.originalFileName);
             setPersonalInfo(data.personalInfo);
             setSummary(data.summary);
             setExperience(data.experience);
@@ -216,23 +204,13 @@ const Wizard: React.FC = () => {
           const content = await file.text();
           resumeData = JSON.parse(content);
         } else if (fileName.endsWith('.pdf')) {
-          if (!profile?.isPremium) {
-            setToast({ message: "PDF import is a premium feature. Please upgrade.", type: 'error' });
-            setLoading(false);
-            return;
-          }
           const text = await extractTextFromPDF(file);
           resumeData = await aiService.parseResumeFromText(text);
         } else if (fileName.endsWith('.docx')) {
-          if (!profile?.isPremium) {
-            setToast({ message: "DOCX import is a premium feature. Please upgrade.", type: 'error' });
-            setLoading(false);
-            return;
-          }
           const text = await extractTextFromDOCX(file);
           resumeData = await aiService.parseResumeFromText(text);
         } else {
-          setToast({ message: "Unsupported file format. Please upload PDF, DOCX, or JSON.", type: 'error' });
+          alert("Unsupported file format. Please upload PDF, DOCX, or JSON.");
           setLoading(false);
           return;
         }
@@ -248,13 +226,12 @@ const Wizard: React.FC = () => {
           if (resumeData.certifications) setCertifications(resumeData.certifications);
           if (resumeData.languages) setLanguages(resumeData.languages);
           if (resumeData.title) setTitle(resumeData.title);
-          setOriginalFileName(file.name);
           
-          setToast({ message: "Resume data imported successfully!", type: 'success' });
+          alert("Resume data imported successfully!");
         }
       } catch (err) {
         console.error("Failed to import resume:", err);
-        setToast({ message: "Failed to parse the file. Please ensure it's a valid resume.", type: 'error' });
+        alert("Failed to parse the file. Please ensure it's a valid resume.");
       } finally {
         setLoading(false);
       }
@@ -262,12 +239,8 @@ const Wizard: React.FC = () => {
   };
 
   const handleAISummary = async () => {
-    if (!profile?.isPremium) {
-      setToast({ message: "AI Summary is a premium feature. Please upgrade.", type: 'error' });
-      return;
-    }
     if (!personalInfo.fullName || experience.length === 0) {
-      setToast({ message: "Please fill in your name and at least one experience first.", type: 'error' });
+      alert("Please fill in your name and at least one experience first.");
       return;
     }
     try {
@@ -285,7 +258,7 @@ const Wizard: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 500000) {
-        setToast({ message: "Photo size should be less than 500KB", type: 'error' });
+        alert("Photo size should be less than 500KB");
         return;
       }
       const reader = new FileReader();
@@ -298,19 +271,19 @@ const Wizard: React.FC = () => {
 
   const handleSave = async () => {
     if (!user) {
-      setToast({ message: "You must be logged in to save a resume.", type: 'error' });
+      alert("You must be logged in to save a resume.");
       return;
     }
 
     // Validation
     if (!personalInfo.fullName || !personalInfo.email) {
-      setToast({ message: "Please fill in your full name and email address.", type: 'error' });
+      alert("Please fill in your full name and email address.");
       setStep(1);
       return;
     }
 
     if (experience.length === 0) {
-      setToast({ message: "Please add at least one work experience.", type: 'error' });
+      alert("Please add at least one work experience.");
       setStep(2);
       return;
     }
@@ -333,25 +306,15 @@ const Wizard: React.FC = () => {
         updatedAt: serverTimestamp()
       };
 
-      if (originalFileName) {
-        resumeData.originalFileName = originalFileName;
-      }
-
       // Initial analysis - this is the "AI generation" part for scoring
-      if (profile?.isPremium) {
-        console.log("Analyzing resume with AI...");
-        const { updatedAt, ...resumeDataForAI } = resumeData;
-        if (resumeDataForAI.personalInfo?.photoUrl) {
-          resumeDataForAI.personalInfo = { ...resumeDataForAI.personalInfo, photoUrl: undefined };
-        }
-        const analysis = await aiService.analyzeResume(resumeDataForAI);
-        resumeData.score = analysis.score;
-        resumeData.analysis = analysis;
-      } else {
-        console.log("Skipping AI analysis for free user.");
-        resumeData.score = 0;
-        resumeData.analysis = undefined;
+      console.log("Analyzing resume with AI...");
+      const { updatedAt, ...resumeDataForAI } = resumeData;
+      if (resumeDataForAI.personalInfo?.photoUrl) {
+        resumeDataForAI.personalInfo = { ...resumeDataForAI.personalInfo, photoUrl: undefined };
       }
+      const analysis = await aiService.analyzeResume(resumeDataForAI);
+      resumeData.score = analysis.score;
+      resumeData.analysis = analysis;
 
       if (id) {
         console.log("Updating resume in Firestore...");
@@ -385,12 +348,15 @@ const Wizard: React.FC = () => {
   };
 
   if (fetching) {
-    return <FullScreenLoader message="Loading editor..." />;
+    return (
+      <div className="min-h-screen bg-white dark:bg-slate-950 flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={40} />
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 flex flex-col w-full max-w-3xl mx-auto relative overflow-x-hidden">
-      {loading && <FullScreenLoader message="Processing..." />}
       <header className="flex items-center px-6 py-8 sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md z-10">
         <button onClick={() => navigate('/')} className="size-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
           <ArrowLeft size={20} />
@@ -618,12 +584,11 @@ const Wizard: React.FC = () => {
                         onChange={e => updateExperience(exp.id, 'endDate', e.target.value)}
                       />
                     </div>
-                    <AIAssistedTextarea 
-                      className="w-full bg-transparent text-sm outline-none min-h-[100px] resize-none placeholder:text-slate-300 pb-12"
+                    <textarea 
+                      className="w-full bg-transparent text-sm outline-none min-h-[100px] resize-none placeholder:text-slate-300"
                       placeholder="Describe your achievements..."
                       value={exp.description}
-                      onValueChange={val => updateExperience(exp.id, 'description', val)}
-                      context={`experience description for ${exp.role} at ${exp.company}`}
+                      onChange={e => updateExperience(exp.id, 'description', e.target.value)}
                     />
                   </div>
                 </motion.div>
@@ -754,12 +719,11 @@ const Wizard: React.FC = () => {
                     value={newProject.link}
                     onChange={e => setNewProject({...newProject, link: e.target.value})}
                   />
-                  <AIAssistedTextarea 
-                    className="w-full p-4 pb-12 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 outline-none focus:border-primary/30 transition-all font-medium min-h-[80px] resize-none"
+                  <textarea 
+                    className="w-full p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 outline-none focus:border-primary/30 transition-all font-medium min-h-[80px] resize-none"
                     placeholder="Brief description..."
                     value={newProject.description}
-                    onValueChange={val => setNewProject({...newProject, description: val})}
-                    context={`project description for ${newProject.name}`}
+                    onChange={e => setNewProject({...newProject, description: e.target.value})}
                   />
                   <button 
                     onClick={addProject}
@@ -849,12 +813,11 @@ const Wizard: React.FC = () => {
                     {loading ? "Polishing..." : "AI Polish"}
                   </button>
                 </div>
-                <AIAssistedTextarea 
-                  className="w-full p-6 pb-14 rounded-3xl bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-primary/30 focus:bg-white dark:focus:bg-slate-950 outline-none transition-all font-medium min-h-[180px] resize-none"
+                <textarea 
+                  className="w-full p-6 rounded-3xl bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-primary/30 focus:bg-white dark:focus:bg-slate-950 outline-none transition-all font-medium min-h-[180px] resize-none"
                   placeholder="Tell your story..."
                   value={summary}
-                  onValueChange={setSummary}
-                  context="professional summary for a resume"
+                  onChange={e => setSummary(e.target.value)}
                 />
               </div>
 
@@ -909,11 +872,6 @@ const Wizard: React.FC = () => {
           </motion.button>
         </div>
       </footer>
-      {toast && (
-        <div className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg text-white ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'} z-50`}>
-          {toast.message}
-        </div>
-      )}
     </div>
   );
 };

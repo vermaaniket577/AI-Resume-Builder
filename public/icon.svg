@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#4338ca" />
+    </linearGradient>
+    <linearGradient id="sparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+  </defs>
+  <!-- Background with rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  
+  <!-- Document paper body -->
+  <g transform="translate(106, 96)">
+    <rect x="0" y="0" width="300" height="340" rx="28" fill="#ffffff" filter="drop-shadow(0 16px 32px rgba(0,0,0,0.18))" />
+    
+    <!-- Header avatar placeholder -->
+    <rect x="36" y="36" width="60" height="60" rx="16" fill="#e0e7ff" />
+    
+    <!-- Header name lines -->
+    <rect x="112" y="44" width="140" height="18" rx="9" fill="#4338ca" />
+    <rect x="112" y="72" width="90" height="12" rx="6" fill="#94a3b8" />
+    
+    <!-- Divider -->
+    <line x1="36" y1="120" x2="264" y2="120" stroke="#f1f5f9" stroke-width="3" stroke-linecap="round" />
+    
+    <!-- Body text simulated rows -->
+    <rect x="36" y="144" width="110" height="14" rx="7" fill="#6366f1" />
+    <rect x="36" y="172" width="228" height="10" rx="5" fill="#cbd5e1" />
+    <rect x="36" y="194" width="190" height="10" rx="5" fill="#e2e8f0" />
+    
+    <rect x="36" y="226" width="90" height="14" rx="7" fill="#6366f1" />
+    <rect x="36" y="254" width="228" height="10" rx="5" fill="#cbd5e1" />
+    <rect x="36" y="276" width="160" height="10" rx="5" fill="#e2e8f0" />
+  </g>
+
+  <!-- AI Sparkle Badge -->
+  <g transform="translate(320, 310)">
+    <circle cx="60" cy="60" r="54" fill="url(#sparkGrad)" filter="drop-shadow(0 8px 16px rgba(245,158,11,0.4))" />
+    <!-- 4-point star -->
+    <path d="M 60 26 C 60 48 42 60 26 60 C 42 60 60 72 60 94 C 60 72 78 60 94 60 C 78 60 60 48 60 26 Z" fill="#ffffff" />
+  </g>
+</svg>
